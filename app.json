@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "swipe-clean",
+    "name": "SwipeClean",
     "slug": "swipe-clean",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,11 @@
     "scheme": "swipeclean",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "SwipeClean memerlukan akses galeri untuk menampilkan dan mengelola foto dan video Anda.",
+        "NSPhotoLibraryAddUsageDescription": "SwipeClean memerlukan izin ini untuk memulihkan file dari sampah."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +21,13 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "output": "static",
@@ -28,10 +38,29 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#14B8A6",
           "android": {
             "image": "./assets/images/splash-icon.png",
             "imageWidth": 76
+          }
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "SwipeClean memerlukan akses galeri untuk menampilkan dan mengelola foto dan video Anda.",
+          "savePhotosPermission": "SwipeClean memerlukan izin ini untuk memulihkan file dari sampah.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      "expo-video",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
           }
         }
       ]
