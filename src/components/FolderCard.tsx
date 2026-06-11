@@ -1,118 +1,183 @@
 /**
  * FolderCard — card untuk folder/album di folder browser.
- * Menampilkan thumbnail gambar pertama, nama folder, dan jumlah file.
+ * Menampilkan cover album, nama folder, dan jumlah file.
+ * Mendukung format horizontal (Pinned) dan vertical (Albums).
  */
 
 import React from 'react';
 import { StyleSheet, View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Folder } from 'lucide-react-native';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 import { useTheme } from '@/hooks/use-theme';
-import { BorderRadius, Spacing } from '@/constants/theme';
+
+// ─── Cache & Helpers ──────────────────────────────────────────────────────────
+
+const thumbnailCache = new Map<string, string>();
+
+function isVideoUri(uri: string): boolean {
+  if (!uri) return false;
+  const lower = uri.toLowerCase();
+  if (lower.startsWith('content://') && lower.includes('/video/')) {
+    return true;
+  }
+  return (
+    lower.endsWith('.mp4') ||
+    lower.endsWith('.m4v') ||
+    lower.endsWith('.mov') ||
+    lower.endsWith('.3gp') ||
+    lower.endsWith('.webm') ||
+    lower.endsWith('.mkv') ||
+    lower.endsWith('.avi')
+  );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FolderCardProps {
   title: string;
   assetCount: number;
-  thumbnailAssetId: string | null;
+  coverUri?: string;
+  variant?: 'horizontal' | 'vertical';
   onPress: () => void;
-  onSwipePress: () => void;
+  onSwipePress?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function FolderCard({
+export const FolderCard = React.memo(function FolderCard({
   title,
   assetCount,
-  thumbnailAssetId,
+  coverUri,
+  variant = 'vertical',
   onPress,
-  onSwipePress,
 }: FolderCardProps) {
   const theme = useTheme();
 
+  const [displayUri, setDisplayUri] = React.useState<string | undefined>(() => {
+    if (coverUri && isVideoUri(coverUri)) {
+      return thumbnailCache.get(coverUri);
+    }
+    return coverUri;
+  });
+
+  React.useEffect(() => {
+    if (!coverUri) {
+      setDisplayUri(undefined);
+      return;
+    }
+
+    const uri = coverUri;
+
+    if (!isVideoUri(uri)) {
+      setDisplayUri(uri);
+      return;
+    }
+
+    const cached = thumbnailCache.get(uri);
+    if (cached) {
+      setDisplayUri(cached);
+      return;
+    }
+
+    let isMounted = true;
+    async function generate() {
+      try {
+        const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 0 });
+        thumbnailCache.set(uri, thumb.uri);
+        if (isMounted) {
+          setDisplayUri(thumb.uri);
+        }
+      } catch (err) {
+        console.warn('Failed to generate folder card cover thumbnail:', err);
+        if (isMounted) {
+          setDisplayUri(undefined); // Fallback ke placeholder folder yang rapi
+        }
+      }
+    }
+    generate();
+    return () => {
+      isMounted = false;
+    };
+  }, [coverUri]);
+
+  const renderThumbnail = () => (
+    <View style={variant === 'horizontal' ? styles.thumbnailContainerHorizontal : styles.thumbnailContainerVertical}>
+      {displayUri ? (
+        <Image
+          source={{ uri: displayUri }}
+          style={styles.thumbnail}
+          contentFit="cover"
+          transition={150}
+          cachePolicy="disk"
+        />
+      ) : (
+        <View
+          style={[
+            styles.thumbnailPlaceholder,
+            { backgroundColor: theme.backgroundElement },
+          ]}
+        >
+          <Folder color={theme.textSecondary} size={variant === 'horizontal' ? 20 : 32} />
+        </View>
+      )}
+    </View>
+  );
+
+  if (variant === 'horizontal') {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.containerHorizontal,
+          {
+            backgroundColor: theme.surfaceElevated,
+            borderColor: theme.border,
+          },
+          pressed && { opacity: 0.8 },
+        ]}
+      >
+        {renderThumbnail()}
+        
+        <View style={styles.infoHorizontal}>
+          <Text style={[styles.titleHorizontal, { color: theme.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.countHorizontal, { color: theme.textSecondary }]}>
+            {assetCount} file
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  // variant = 'vertical'
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.container,
-        {
-          backgroundColor: theme.surfaceElevated,
-          borderColor: theme.border,
-        },
+        styles.containerVertical,
         pressed && { opacity: 0.8 },
       ]}
     >
-      {/* Thumbnail */}
-      <View style={styles.thumbnailContainer}>
-        {thumbnailAssetId ? (
-          <Image
-            source={{ uri: thumbnailAssetId }}
-            style={styles.thumbnail}
-            contentFit="cover"
-            transition={200}
-          />
-        ) : (
-          <View
-            style={[
-              styles.thumbnailPlaceholder,
-              { backgroundColor: theme.backgroundElement },
-            ]}
-          >
-            <Folder color={theme.textSecondary} size={24} />
-          </View>
-        )}
-      </View>
-
-      {/* Info */}
-      <View style={styles.info}>
-        <Text
-          style={[styles.title, { color: theme.text }]}
-          numberOfLines={1}
-        >
+      {renderThumbnail()}
+      
+      <View style={styles.infoVertical}>
+        <Text style={[styles.titleVertical, { color: theme.text }]} numberOfLines={1}>
           {title}
         </Text>
-        <Text style={[styles.count, { color: theme.textSecondary }]}>
-          {assetCount} {assetCount === 1 ? 'file' : 'file'}
+        <Text style={[styles.countVertical, { color: theme.textSecondary }]}>
+          {assetCount}
         </Text>
       </View>
-
-      {/* Swipe button */}
-      <Pressable
-        onPress={onSwipePress}
-        hitSlop={8}
-        style={({ pressed }) => [
-          styles.swipeButton,
-          { backgroundColor: theme.primary },
-          pressed && { opacity: 0.8 },
-        ]}
-      >
-        <Text style={styles.swipeButtonText}>Swipe ▶</Text>
-      </Pressable>
     </Pressable>
   );
-}
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.three,
-    marginHorizontal: Spacing.three,
-    marginVertical: Spacing.one,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.three,
-  },
-  thumbnailContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-  },
   thumbnail: {
     width: '100%',
     height: '100%',
@@ -123,28 +188,62 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderEmoji: {
-    fontSize: 24,
-  },
-  info: {
+  
+  // Horizontal (Pinned items)
+  containerHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
     flex: 1,
-    gap: 4,
+    minWidth: '45%',
   },
-  title: {
-    fontSize: 15,
-    fontWeight: '600',
+  thumbnailContainerHorizontal: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#1A1A1A',
   },
-  count: {
-    fontSize: 13,
+  infoHorizontal: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 2,
   },
-  swipeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  swipeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+  titleHorizontal: {
+    fontSize: 14,
     fontWeight: '700',
+  },
+  countHorizontal: {
+    fontSize: 12,
+  },
+
+  // Vertical (Albums items)
+  containerVertical: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginVertical: 6,
+  },
+  thumbnailContainerVertical: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#1A1A1A',
+  },
+  infoVertical: {
+    width: '100%',
+    paddingHorizontal: 2,
+    gap: 2,
+  },
+  titleVertical: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  countVertical: {
+    fontSize: 12,
   },
 });

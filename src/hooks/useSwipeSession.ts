@@ -5,7 +5,7 @@
  * session ID, dan interaksi dengan trash store.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Asset } from 'expo-media-library';
 import * as Haptics from 'expo-haptics';
 
@@ -35,14 +35,22 @@ interface SwipeSessionReturn {
 export function useSwipeSession(
   assets: Asset[],
   albumId?: string | null,
+  initialIndex: number = 0,
 ): SwipeSessionReturn {
   const sessionId = useMemo(() => generateSessionId(), []);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [deletedCount, setDeletedCount] = useState(0);
   const [keptCount, setKeptCount] = useState(0);
   const [lastDeletedAsset, setLastDeletedAsset] = useState<Asset | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Gunakan ref untuk melacak index saat ini secara aman tanpa race condition di gesture handler
+  const currentIndexRef = useRef(initialIndex);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   const addToTrash = useTrashStore((s) => s.addToTrash);
   const restoreFromTrash = useTrashStore((s) => s.restoreFromTrash);
@@ -53,6 +61,9 @@ export function useSwipeSession(
 
   const handleSwipeLeft = useCallback(
     async (asset: Asset) => {
+      // Guard: cegah aksi jika index sudah di akhir/selesai
+      if (currentIndexRef.current >= assets.length) return;
+
       try {
         // Haptic feedback — warning
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -79,11 +90,11 @@ export function useSwipeSession(
           setLastDeletedAsset(null);
         }, 5000);
 
-        // Advance ke card berikutnya
-        const nextIndex = currentIndex + 1;
-        setCurrentIndex(nextIndex);
+        // Advance ke card berikutnya menggunakan functional update
+        setCurrentIndex((prev) => prev + 1);
 
-        // Preload card ke depan
+        // Preload lebih jauh menggunakan index berikutnya
+        const nextIndex = currentIndexRef.current + 1;
         preloadAhead(assets, nextIndex);
 
         // Evict card yang sudah lewat dari cache
@@ -92,13 +103,16 @@ export function useSwipeSession(
         console.error('Error handling swipe left:', error);
       }
     },
-    [addToTrash, albumId, assets, currentIndex, sessionId],
+    [addToTrash, albumId, assets, sessionId],
   );
 
   // ─── Swipe Right (Simpan) ─────────────────────────────────────────────────
 
   const handleSwipeRight = useCallback(
     async (asset: Asset) => {
+      // Guard: cegah aksi jika index sudah di akhir/selesai
+      if (currentIndexRef.current >= assets.length) return;
+
       try {
         // Haptic feedback — medium impact
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -116,11 +130,11 @@ export function useSwipeSession(
           clearTimeout(undoTimerRef.current);
         }
 
-        // Advance ke card berikutnya
-        const nextIndex = currentIndex + 1;
-        setCurrentIndex(nextIndex);
+        // Advance ke card berikutnya menggunakan functional update
+        setCurrentIndex((prev) => prev + 1);
 
-        // Preload card ke depan
+        // Preload lebih jauh menggunakan index berikutnya
+        const nextIndex = currentIndexRef.current + 1;
         preloadAhead(assets, nextIndex);
 
         // Evict card yang sudah lewat dari cache
@@ -129,7 +143,7 @@ export function useSwipeSession(
         console.error('Error handling swipe right:', error);
       }
     },
-    [assets, currentIndex, sessionId],
+    [assets, sessionId],
   );
 
   // ─── Undo ─────────────────────────────────────────────────────────────────
@@ -164,7 +178,7 @@ export function useSwipeSession(
   // ─── Reset ────────────────────────────────────────────────────────────────
 
   const resetSession = useCallback(() => {
-    setCurrentIndex(0);
+    setCurrentIndex(initialIndex);
     setDeletedCount(0);
     setKeptCount(0);
     setLastDeletedAsset(null);
@@ -173,7 +187,7 @@ export function useSwipeSession(
     if (undoTimerRef.current) {
       clearTimeout(undoTimerRef.current);
     }
-  }, []);
+  }, [initialIndex]);
 
   return {
     currentIndex,

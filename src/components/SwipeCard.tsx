@@ -30,6 +30,7 @@ import { VideoPreview } from '@/components/VideoPreview';
 export interface SwipeCardProps {
   asset: Asset;
   assetUri: string;
+  assetThumbnailUri?: string;
   assetMediaType: MediaType;
   assetWidth: number;
   assetHeight: number;
@@ -45,6 +46,7 @@ export interface SwipeCardProps {
 export function SwipeCard({
   asset,
   assetUri,
+  assetThumbnailUri,
   assetMediaType,
   assetWidth,
   assetHeight,
@@ -224,7 +226,7 @@ export function SwipeCard({
           />
         ) : (
           <Image
-            source={{ uri: assetUri || asset.id }}
+            source={{ uri: assetThumbnailUri || assetUri || asset.id }}
             style={styles.image}
             contentFit="cover"
             transition={200}

@@ -7,7 +7,6 @@
  */
 
 import { create } from 'zustand';
-import { Asset } from 'expo-media-library';
 
 import {
   type MediaFilter,

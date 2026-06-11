@@ -49,7 +49,7 @@ export function ProgressBar({ current, total, deletedCount }: ProgressBarProps) 
             },
           ]}
         />
-        {/* Progress portion (teal) */}
+        {/* Progress portion (purple) */}
         <View
           style={[
             styles.barProgressFill,

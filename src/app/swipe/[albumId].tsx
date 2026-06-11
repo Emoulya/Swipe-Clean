@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * Swipe Mode — full screen card swipe interface.
  *
@@ -19,7 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Asset, MediaType } from 'expo-media-library';
-import { X, Settings, PartyPopper } from 'lucide-react-native';
+import { X, Settings, PartyPopper, Info } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useMediaStore } from '@/store/useMediaStore';
@@ -28,9 +29,9 @@ import { useSwipeSession } from '@/hooks/useSwipeSession';
 import { SwipeCard } from '@/components/SwipeCard';
 import { ProgressBar } from '@/components/ProgressBar';
 import { UndoSnackbar } from '@/components/UndoSnackbar';
+import { DetailInfoModal } from '@/components/DetailInfoModal';
 import { CONFIG } from '@/constants/config';
-import { getPreloadedInfo } from '@/lib/preloader';
-import { preloadAhead } from '@/lib/preloader';
+import { getPreloadedInfo, preloadAhead } from '@/lib/preloader';
 import { type AssetInfo } from '@/lib/mediaLoader';
 import { Spacing } from '@/constants/theme';
 
@@ -45,7 +46,7 @@ interface CardData {
 
 export default function SwipeScreen() {
   const theme = useTheme();
-  const { albumId } = useLocalSearchParams<{ albumId: string }>();
+  const { albumId, initialIndex } = useLocalSearchParams<{ albumId: string; initialIndex?: string }>();
 
   const { assets: filteredAssets } = useFilteredAssets();
   const isLoading = useMediaStore((s) => s.isLoading);
@@ -56,14 +57,29 @@ export default function SwipeScreen() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [cardStack, setCardStack] = useState<CardData[]>([]);
   const [isPreloading, setIsPreloading] = useState(true);
+  const [isInfoVisible, setIsInfoVisible] = useState(false);
 
-  // Set snapshot assets sekali saat loading selesai
+  const activeFilterAlbumId = useMediaStore((s) => s.filter.albumId);
+  const targetAlbumId = albumId === 'all' ? null : albumId;
+  const isFilterMatched = activeFilterAlbumId === targetAlbumId;
+
+  const activeCard = cardStack[0];
+
+  const parsedInitialIndex = initialIndex ? parseInt(initialIndex, 10) : 0;
+
+  // Reset inisialisasi ketika albumId berubah
   useEffect(() => {
-    if (!isLoading && !isInitialized) {
+    setIsInitialized(false);
+    setSessionAssets([]);
+  }, [albumId]);
+
+  // Set snapshot assets sekali saat loading selesai dan filter di store sudah sesuai
+  useEffect(() => {
+    if (!isLoading && isFilterMatched && !isInitialized) {
       setSessionAssets(filteredAssets);
       setIsInitialized(true);
     }
-  }, [filteredAssets, isLoading, isInitialized]);
+  }, [filteredAssets, isLoading, isInitialized, isFilterMatched]);
 
   const {
     currentIndex,
@@ -75,15 +91,22 @@ export default function SwipeScreen() {
     handleSwipeLeft,
     handleSwipeRight,
     handleUndo,
-  } = useSwipeSession(sessionAssets, albumId === 'all' ? null : albumId);
+  } = useSwipeSession(sessionAssets, targetAlbumId, parsedInitialIndex);
 
   // ─── Inisialisasi: set filter dan load assets ─────────────────────────────
 
   useEffect(() => {
     if (albumId && albumId !== 'all') {
       setFilter({ albumId });
+    } else {
+      setFilter({ albumId: null });
     }
     loadInitialAssets();
+
+    // Reset filter album ketika swipe mode ditutup agar tidak mengotori tab Galeri utama
+    return () => {
+      setFilter({ albumId: null });
+    };
   }, [albumId]);
 
   // ─── Preload stack cards ──────────────────────────────────────────────────
@@ -146,7 +169,7 @@ export default function SwipeScreen() {
 
   // ─── Render: Loading state ────────────────────────────────────────────────
 
-  if (isLoading && sessionAssets.length === 0) {
+  if (!isInitialized) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: '#000' }]}>
         <View style={styles.centered}>
@@ -211,9 +234,16 @@ export default function SwipeScreen() {
           deletedCount={deletedCount}
         />
 
-        <Pressable onPress={() => router.push('/settings' as any)} hitSlop={12}>
-          <Settings color="#FFFFFF" size={24} />
-        </Pressable>
+        <View style={styles.headerRight}>
+          {activeCard && (
+            <Pressable onPress={() => setIsInfoVisible(true)} hitSlop={12} style={{ marginRight: 16 }}>
+              <Info color="#FFFFFF" size={24} />
+            </Pressable>
+          )}
+          <Pressable onPress={() => router.push('/settings' as any)} hitSlop={12}>
+            <Settings color="#FFFFFF" size={24} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Card stack */}
@@ -231,6 +261,7 @@ export default function SwipeScreen() {
                 key={card.asset.id}
                 asset={card.asset}
                 assetUri={card.info.uri}
+                assetThumbnailUri={card.info.thumbnailUri}
                 assetMediaType={card.info.mediaType}
                 assetWidth={card.info.width}
                 assetHeight={card.info.height}
@@ -268,6 +299,15 @@ export default function SwipeScreen() {
         onUndo={handleUndo}
         onDismiss={handleUndoDismiss}
       />
+
+      {activeCard && (
+        <DetailInfoModal
+          visible={isInfoVisible}
+          onClose={() => setIsInfoVisible(false)}
+          asset={activeCard.asset}
+          assetInfo={activeCard.info}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -296,6 +336,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     gap: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerBackText: {
     color: '#FFFFFF',

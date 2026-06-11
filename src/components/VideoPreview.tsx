@@ -9,7 +9,7 @@ import React, { useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, Pressable } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
-import { Play, Pause } from 'lucide-react-native';
+import { Play } from 'lucide-react-native';
 
 import { CONFIG } from '@/constants/config';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -33,11 +33,8 @@ export function VideoPreview({ uri, isActive, duration }: VideoPreviewProps) {
     try {
       p.loop = true;
       p.muted = muted;
-
-      if (autoPlay && isActive) {
-        p.play();
-      }
-    } catch (e) {
+      p.timeUpdateEventInterval = 1.0; // Trigger timeUpdate setiap 1 detik
+    } catch {
       // Ignored
     }
   });
@@ -47,67 +44,83 @@ export function VideoPreview({ uri, isActive, duration }: VideoPreviewProps) {
     isPlaying: player.playing,
   });
 
-  // Sinkronkan preferensi mute jika diset dari luar
+  // Gunakan ref untuk melacak currentTime secara real-time tanpa memicu re-render
+  const currentTimeRef = React.useRef(0);
+
+  useEffect(() => {
+    if (!player) return;
+    const subscription = player.addListener('timeUpdate', (event) => {
+      currentTimeRef.current = event.currentTime;
+      // Potong preview di VIDEO_MAX_PREVIEW_DURATION detik (looping)
+      if (event.currentTime >= CONFIG.VIDEO_MAX_PREVIEW_DURATION) {
+        try {
+          player.currentTime = 0;
+        } catch {
+          // Ignored
+        }
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [player]);
+
+  // Sinkronkan preferensi muted jika diset dari luar
   useEffect(() => {
     if (player) {
       try {
+        // eslint-disable-next-line react-hooks/immutability
         player.muted = muted;
-      } catch (e) {
+      } catch {
         // Ignored
       }
     }
   }, [player, muted]);
 
-  // Pause/resume berdasarkan isActive dan autoPlay
+  // Effect 1: Hanya dipanggil sekali saat unmount untuk me-release player secara aman
+  useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+        player.release();
+      } catch {
+        // Ignored
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Effect 2: Mengontrol play/pause berdasarkan status aktif (isActive) dan preferensi autoPlay
   useEffect(() => {
     if (!player) return;
+
+    let timer: any = null;
 
     try {
       if (isActive) {
         if (autoPlay) {
-          player.play();
+          timer = setTimeout(() => {
+            try {
+              player.play();
+            } catch {
+              // Ignored
+            }
+          }, 350);
         } else {
           player.pause();
         }
       } else {
         player.pause();
       }
-    } catch (e) {
+    } catch {
       // Ignored
     }
 
     return () => {
-      try {
-        player.pause();
-      } catch (e) {
-        // Ignored if already released
-      }
+      if (timer) clearTimeout(timer);
     };
-  }, [isActive, player, autoPlay]);
-
-  // Potong preview di VIDEO_MAX_PREVIEW_DURATION detik
-  const handleTimeUpdate = useCallback(() => {
-    if (!player) return;
-
-    try {
-      if (player.currentTime >= CONFIG.VIDEO_MAX_PREVIEW_DURATION) {
-        player.currentTime = 0;
-      }
-    } catch (e) {
-      // Ignored
-    }
-  }, [player]);
-
-  // Monitor currentTime untuk cutoff
-  useEffect(() => {
-    if (!player || !isActive) return;
-
-    const interval = setInterval(() => {
-      handleTimeUpdate();
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [player, isActive, handleTimeUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, autoPlay]);
 
   const togglePlay = useCallback(() => {
     if (!player) return;
@@ -117,7 +130,7 @@ export function VideoPreview({ uri, isActive, duration }: VideoPreviewProps) {
       } else {
         player.play();
       }
-    } catch (e) {
+    } catch {
       // Ignored
     }
   }, [player, isPlaying]);

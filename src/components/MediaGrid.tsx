@@ -1,10 +1,11 @@
 /**
  * MediaGrid — FlashList grid untuk browse galeri.
- * Menggunakan @shopify/flash-list dengan 3 kolom.
+ * Menggunakan @shopify/flash-list dengan single column layout campuran
+ * (Header & Row berisi 3 item) untuk stabilitas grid heterogen.
  * Thumbnail 1:1 aspect ratio menggunakan expo-image.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,11 +16,11 @@ import {
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
-import { Asset, MediaType } from 'expo-media-library';
-
+import { MediaType } from 'expo-media-library';
+import { Camera } from 'lucide-react-native';
 import { CONFIG } from '@/constants/config';
 import { useTheme } from '@/hooks/use-theme';
-import { type ExtendedAsset } from '@/lib/mediaLoader';
+import { type ExtendedAsset, formatDateId } from '@/lib/mediaLoader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,70 @@ interface GridItemProps {
   asset: ExtendedAsset;
   size: number;
   onPress?: (asset: ExtendedAsset) => void;
+}
+
+export interface GridHeaderItem {
+  id: string;
+  type: 'header';
+  title: string;
+}
+
+export interface GridRowItem {
+  id: string;
+  type: 'row';
+  items: ExtendedAsset[];
+}
+
+export type GridListItem = GridHeaderItem | GridRowItem;
+
+// ─── Grouping Helper ──────────────────────────────────────────────────────────
+
+function groupAssetsForGrid(assets: ExtendedAsset[]): GridListItem[] {
+  const listItems: GridListItem[] = [];
+  let currentGroupKey: string | null = null;
+  let currentGroupAssets: ExtendedAsset[] = [];
+
+  const pushCurrentGroupRows = (groupKey: string) => {
+    if (currentGroupAssets.length === 0) return;
+    
+    for (let i = 0; i < currentGroupAssets.length; i += 3) {
+      const rowItems = currentGroupAssets.slice(i, i + 3);
+      listItems.push({
+        id: `row-${groupKey}-${i}`,
+        type: 'row',
+        items: rowItems,
+      });
+    }
+    currentGroupAssets = [];
+  };
+
+  for (const asset of assets) {
+    const timestamp = asset.cachedCreationTime ?? Date.now();
+    const dateStr = formatDateId(timestamp);
+    const albumName = asset.cachedAlbumName || 'Galeri';
+    const groupKey = `${dateStr} | ${albumName}`;
+
+    if (groupKey !== currentGroupKey) {
+      if (currentGroupKey !== null) {
+        pushCurrentGroupRows(currentGroupKey);
+      }
+      
+      currentGroupKey = groupKey;
+      listItems.push({
+        id: `header-${groupKey}`,
+        type: 'header',
+        title: groupKey,
+      });
+    }
+
+    currentGroupAssets.push(asset);
+  }
+
+  if (currentGroupKey !== null) {
+    pushCurrentGroupRows(currentGroupKey);
+  }
+
+  return listItems;
 }
 
 // ─── Grid Item ────────────────────────────────────────────────────────────────
@@ -107,18 +172,57 @@ export function MediaGrid({
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     onRefresh();
-    // Beri waktu minimal agar UX pull-to-refresh terasa
     setTimeout(() => setRefreshing(false), 500);
   }, [onRefresh]);
 
+  const groupedData = useMemo(() => groupAssetsForGrid(assets), [assets]);
+
   const renderItem = useCallback(
-    ({ item }: { item: ExtendedAsset }) => (
-      <GridItem asset={item} size={itemSize} onPress={onAssetPress} />
-    ),
-    [itemSize, onAssetPress],
+    ({ item }: { item: GridListItem }) => {
+      if (item.type === 'header') {
+        return (
+          <View style={styles.headerSection}>
+            <Text style={[styles.headerSectionText, { color: theme.textSecondary }]}>
+              {item.title}
+            </Text>
+          </View>
+        );
+      } else {
+        return (
+          <View style={styles.gridRow}>
+            {item.items.map((asset) => (
+              <GridItem
+                key={asset.id}
+                asset={asset}
+                size={itemSize}
+                onPress={onAssetPress}
+              />
+            ))}
+            {item.items.length < CONFIG.GRID_COLUMNS &&
+              Array.from({ length: CONFIG.GRID_COLUMNS - item.items.length }).map((_, idx) => (
+                <View key={`filler-${idx}`} style={{ width: itemSize, margin: 1 }} />
+              ))}
+          </View>
+        );
+      }
+    },
+    [itemSize, onAssetPress, theme.textSecondary],
   );
 
-  const keyExtractor = useCallback((item: ExtendedAsset) => item.id, []);
+  const keyExtractor = useCallback((item: GridListItem) => item.id, []);
+  
+  const getItemType = useCallback((item: GridListItem) => item.type, []);
+
+  const overrideItemLayout = useCallback(
+    (layout: any, item: GridListItem) => {
+      if (item.type === 'header') {
+        layout.size = 48; // Estimasi tinggi header section
+      } else {
+        layout.size = itemSize + 2; // Tinggi itemSize + margin vertikal
+      }
+    },
+    [itemSize],
+  );
 
   const renderFooter = useCallback(() => {
     if (!isLoading) return null;
@@ -133,7 +237,7 @@ export function MediaGrid({
     if (isLoading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyEmoji]}>📷</Text>
+        <Camera size={48} color={theme.textSecondary} />
         <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
           {emptyMessage}
         </Text>
@@ -143,16 +247,26 @@ export function MediaGrid({
 
   return (
     <FlashList
-      data={assets}
+      data={groupedData}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      numColumns={CONFIG.GRID_COLUMNS}
+      getItemType={getItemType}
+      overrideItemLayout={overrideItemLayout}
+      numColumns={1}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
       ListHeaderComponent={headerComponent}
       ListFooterComponent={renderFooter}
       ListEmptyComponent={renderEmpty}
       contentContainerStyle={styles.listContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.primary}
+          colors={[theme.primary]}
+        />
+      }
     />
   );
 }
@@ -170,7 +284,7 @@ function formatDuration(durationMs: number): string {
 
 const styles = StyleSheet.create({
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 120, // Diperpanjang agar tidak tertutup floating bottom bar
   },
   gridItem: {
     margin: 1,
@@ -233,4 +347,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
+  headerSection: {
+    paddingHorizontal: 12,
+    paddingTop: 16,
+    paddingBottom: 6,
+  },
+  headerSectionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  gridRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
 });
+

@@ -3,13 +3,16 @@
  * Menampilkan thumbnail dengan overlay trash icon dan info media.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Trash2 } from 'lucide-react-native';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 import { useTheme } from '@/hooks/use-theme';
 import { type TrashBinRow } from '@/lib/db';
+
+const thumbnailCache = new Map<string, string>();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +26,7 @@ interface TrashItemProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function TrashItem({
+export const TrashItem = React.memo(function TrashItem({
   item,
   size,
   isSelected,
@@ -42,6 +45,41 @@ export function TrashItem({
 
   const isVideo = item.media_type === 'video';
 
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(() => {
+    if (isVideo) {
+      return thumbnailCache.get(item.uri) || null;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (!isVideo || thumbnailUri) return;
+
+    let isMounted = true;
+    async function generateThumbnail() {
+      try {
+        const cached = thumbnailCache.get(item.uri);
+        if (cached) {
+          if (isMounted) setThumbnailUri(cached);
+          return;
+        }
+        const { uri } = await VideoThumbnails.getThumbnailAsync(item.uri, { time: 0 });
+        thumbnailCache.set(item.uri, uri);
+        if (isMounted) {
+          setThumbnailUri(uri);
+        }
+      } catch (error) {
+        console.warn('Failed to generate thumbnail for trash video:', error);
+      }
+    }
+
+    generateThumbnail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [item.uri, isVideo, thumbnailUri]);
+
   return (
     <Pressable
       onPress={handlePress}
@@ -55,7 +93,7 @@ export function TrashItem({
     >
       {/* Thumbnail */}
       <Image
-        source={{ uri: item.uri }}
+        source={{ uri: isVideo ? (thumbnailUri || item.uri) : item.uri }}
         style={styles.thumbnail}
         contentFit="cover"
         transition={150}
@@ -92,7 +130,7 @@ export function TrashItem({
       </View>
     </Pressable>
   );
-}
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -14,8 +14,8 @@ export const Colors = {
     textSecondary: '#60646C',
 
     // SwipeClean custom colors
-    primary: '#14B8A6',          // Teal — progress, aksen utama
-    primaryLight: '#5EEAD4',     // Teal light
+    primary: '#7C3AED',          // Violet/Purple — progress, aksen utama
+    primaryLight: '#DDD6FE',     // Violet/Purple light
     danger: '#EF4444',           // Red — hapus, trash
     dangerLight: '#FCA5A5',      // Red light
     success: '#22C55E',          // Green — simpan, keep
@@ -26,7 +26,7 @@ export const Colors = {
     overlay: 'rgba(0, 0, 0, 0.5)',
     border: '#E2E8F0',
     tabBar: '#FFFFFF',
-    tabBarActive: '#14B8A6',
+    tabBarActive: '#7C3AED',
     tabBarInactive: '#94A3B8',
   },
   dark: {
@@ -37,8 +37,8 @@ export const Colors = {
     textSecondary: '#B0B4BA',
 
     // SwipeClean custom colors
-    primary: '#2DD4BF',
-    primaryLight: '#14B8A6',
+    primary: '#A78BFA',          // Violet/Purple light (kontras tinggi di dark mode)
+    primaryLight: '#7C3AED',     // Violet/Purple
     danger: '#F87171',
     dangerLight: '#EF4444',
     success: '#4ADE80',
@@ -49,7 +49,7 @@ export const Colors = {
     overlay: 'rgba(0, 0, 0, 0.7)',
     border: '#334155',
     tabBar: '#111111',
-    tabBarActive: '#2DD4BF',
+    tabBarActive: '#A78BFA',
     tabBarInactive: '#64748B',
   },
 } as const;

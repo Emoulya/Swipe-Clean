@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 /**
  * UndoSnackbar — snackbar undo yang muncul 5 detik setelah swipe kiri.
  * Auto-dismiss dengan countdown visual.
@@ -9,9 +10,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
-  runOnJS,
-  withSequence,
 } from 'react-native-reanimated';
 
 import { CONFIG } from '@/constants/config';
@@ -37,6 +35,20 @@ export function UndoSnackbar({
   const opacity = useSharedValue(0);
   const progressWidth = useSharedValue(1); // 1 = full, 0 = habis
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDismiss = useCallback(() => {
+    translateY.value = withTiming(100, { duration: 200 });
+    opacity.value = withTiming(0, { duration: 150 });
+    onDismiss();
+  }, [onDismiss, translateY, opacity]);
+
+  const handleUndo = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    onUndo();
+  }, [onUndo]);
 
   // Animasi masuk/keluar
   useEffect(() => {
@@ -67,21 +79,7 @@ export function UndoSnackbar({
         clearTimeout(timerRef.current);
       }
     };
-  }, [visible]);
-
-  const handleDismiss = useCallback(() => {
-    translateY.value = withTiming(100, { duration: 200 });
-    opacity.value = withTiming(0, { duration: 150 });
-    onDismiss();
-  }, [onDismiss, translateY, opacity]);
-
-  const handleUndo = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    onUndo();
-  }, [onUndo]);
+  }, [visible, handleDismiss, translateY, opacity, progressWidth]);
 
   const containerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -171,7 +169,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.24)',
   },
   undoText: {
-    color: '#2DD4BF',
+    color: '#A78BFA',
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 1,

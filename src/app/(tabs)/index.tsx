@@ -81,9 +81,13 @@ export default function GridViewScreen() {
   }, [filter.albumId]);
 
   const handleAssetPress = useCallback((asset: Asset) => {
-    // Untuk sekarang, tap pada asset → buka swipe mode dari semua
-    router.push('/swipe/all' as any);
-  }, []);
+    const index = assets.findIndex((a) => a.id === asset.id);
+    const initialIndex = index !== -1 ? index : 0;
+    router.push({
+      pathname: '/swipe/all',
+      params: { initialIndex },
+    } as any);
+  }, [assets]);
 
   // ─── Permission belum diberikan ───────────────────────────────────────────
 
@@ -193,7 +197,7 @@ const styles = StyleSheet.create({
   // FAB
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 104,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',

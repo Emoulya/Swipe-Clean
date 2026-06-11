@@ -13,9 +13,14 @@ import {
   MediaType,
   requestPermissionsAsync,
 } from 'expo-media-library';
-import { deleteAssetsAsync } from 'expo-media-library/legacy';
+import { deleteAssetsAsync, getAlbumsAsync, getAssetsAsync } from 'expo-media-library/legacy';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 import { CONFIG } from '@/constants/config';
+
+// ─── Cache & Helpers ──────────────────────────────────────────────────────────
+
+const videoThumbnailCache = new Map<string, string>();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +39,7 @@ export interface AssetInfo {
   duration: number | null;
   creationTime: number | null;
   uri: string;
+  thumbnailUri?: string;
 }
 
 export interface ExtendedAsset extends Asset {
@@ -44,6 +50,7 @@ export interface ExtendedAsset extends Asset {
   cachedHeight?: number;
   cachedCreationTime?: number | null;
   cachedFilename?: string;
+  cachedAlbumName?: string;
 }
 
 export const DEFAULT_FILTER: MediaFilter = {
@@ -51,6 +58,25 @@ export const DEFAULT_FILTER: MediaFilter = {
   dateRange: { from: null, to: null },
   albumId: null,
 };
+
+// ─── Indonesia Date Formatter ──────────────────────────────────────────────────
+
+const MONTH_NAMES_ID = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+export function formatDateId(timestamp: number | null): string {
+  if (!timestamp) return 'Tanggal Tidak Diketahui';
+  const date = new Date(timestamp);
+  const day = date.getDate();
+  const month = MONTH_NAMES_ID[date.getMonth()];
+  const year = date.getFullYear().toString().slice(-2);
+  return `${month} ${day} ${year}`;
+}
+
+// ─── Album Caching Map (Deleted for performance optimization) ─────────────────
+
 
 // ─── Permissions ──────────────────────────────────────────────────────────────
 
@@ -100,7 +126,7 @@ export async function loadAssets(
   filter: MediaFilter = DEFAULT_FILTER,
   offset: number = 0,
   limit: number = CONFIG.PAGE_SIZE,
-): Promise<Asset[]> {
+ ): Promise<Asset[]> {
   // Jika filter berdasarkan album, load dari album object
   if (filter.albumId) {
     return loadAlbumAssets(filter.albumId, filter, offset, limit);
@@ -158,22 +184,37 @@ export interface AlbumInfo {
   album: Album;
   title: string;
   assetCount: number;
+  coverUri?: string;
 }
 
-/**
- * Load semua album, diurutkan berdasarkan jumlah file terbanyak.
- */
 export async function loadAlbums(): Promise<AlbumInfo[]> {
-  const albums = await Album.getAll();
+  // Gunakan legacy API untuk mendapatkan semua album dan assetCount secara instan
+  const legacyAlbums = await getAlbumsAsync({ includeSmartAlbums: true });
 
   const albumInfos: AlbumInfo[] = await Promise.all(
-    albums.map(async (album) => {
-      const title = await album.getTitle();
-      const assets = await album.getAssets();
+    legacyAlbums.map(async (legacyAlbum) => {
+      let coverUri: string | undefined = undefined;
+
+        try {
+          // Ambil up to 5 asset pertama dari album untuk mendapatkan cover URI terbaik
+          const assetsResult = await getAssetsAsync({
+            album: legacyAlbum.id,
+            first: 5,
+          });
+          if (assetsResult.assets.length > 0) {
+            // Prioritaskan asset bertipe photo (gambar) yang pasti bisa dirender langsung
+            const photoAsset = assetsResult.assets.find((a) => a.mediaType === 'photo');
+            coverUri = photoAsset ? photoAsset.uri : assetsResult.assets[0].uri;
+          }
+        } catch {
+          // Ignored
+        }
+
       return {
-        album,
-        title,
-        assetCount: assets.length,
+        album: new Album(legacyAlbum.id),
+        title: legacyAlbum.title,
+        assetCount: legacyAlbum.assetCount,
+        coverUri,
       };
     }),
   );
@@ -200,6 +241,22 @@ export async function getAssetInfo(asset: Asset): Promise<AssetInfo> {
       asset.getUri(),
     ]);
 
+  let thumbnailUri: string | undefined = undefined;
+  if (mediaType === MediaType.VIDEO) {
+    try {
+      const cached = videoThumbnailCache.get(uri);
+      if (cached) {
+        thumbnailUri = cached;
+      } else {
+        const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 0 });
+        videoThumbnailCache.set(uri, thumb.uri);
+        thumbnailUri = thumb.uri;
+      }
+    } catch (err) {
+      console.warn(`Failed to generate video thumbnail in getAssetInfo for ${asset.id}:`, err);
+    }
+  }
+
   return {
     asset,
     filename,
@@ -209,6 +266,7 @@ export async function getAssetInfo(asset: Asset): Promise<AssetInfo> {
     duration,
     creationTime,
     uri,
+    thumbnailUri,
   };
 }
 
@@ -223,11 +281,14 @@ export async function getAssetsInfo(assets: Asset[]): Promise<AssetInfo[]> {
  * Mengisi properti cache pada objek Asset secara paralel.
  * Mengembalikan objek ExtendedAsset untuk kemudahan akses sinkron di komponen UI.
  */
-export async function extendAsset(asset: Asset): Promise<ExtendedAsset> {
+export async function extendAsset(asset: Asset, albumName?: string): Promise<ExtendedAsset> {
   const extAsset = asset as ExtendedAsset;
 
-  // Jika sudah terisi cache-nya, lewati
+  // Jika sudah terisi cache-nya, kita bisa langsung update albumName-nya saja
   if (extAsset.cachedUri) {
+    if (albumName) {
+      extAsset.cachedAlbumName = albumName;
+    }
     return extAsset;
   }
 
@@ -249,7 +310,25 @@ export async function extendAsset(asset: Asset): Promise<ExtendedAsset> {
     extAsset.cachedHeight = height;
     extAsset.cachedDuration = duration;
     extAsset.cachedCreationTime = creationTime;
-    extAsset.cachedUri = uri;
+    extAsset.cachedAlbumName = albumName || 'Galeri';
+
+    if (mediaType === MediaType.VIDEO) {
+      try {
+        const cached = videoThumbnailCache.get(uri);
+        if (cached) {
+          extAsset.cachedUri = cached;
+        } else {
+          const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 0 });
+          videoThumbnailCache.set(uri, thumb.uri);
+          extAsset.cachedUri = thumb.uri;
+        }
+      } catch (thumbError) {
+        console.warn(`Failed to generate thumbnail for video asset ${asset.id}:`, thumbError);
+        extAsset.cachedUri = uri; // Fallback
+      }
+    } else {
+      extAsset.cachedUri = uri;
+    }
   } catch (error) {
     console.error(`Failed to extend asset metadata for ID: ${asset.id}`, error);
     extAsset.cachedFilename = '';
@@ -259,16 +338,26 @@ export async function extendAsset(asset: Asset): Promise<ExtendedAsset> {
     extAsset.cachedDuration = null;
     extAsset.cachedCreationTime = Date.now();
     extAsset.cachedUri = '';
+    extAsset.cachedAlbumName = albumName || 'Galeri';
   }
 
   return extAsset;
 }
 
 /**
- * Batch extend assets untuk performance optimization
+ * Batch extend assets untuk performance optimization dengan concurrency limit 10
  */
-export async function extendAssets(assets: Asset[]): Promise<ExtendedAsset[]> {
-  return Promise.all(assets.map(extendAsset));
+export async function extendAssets(assets: Asset[], albumName?: string): Promise<ExtendedAsset[]> {
+  const results: ExtendedAsset[] = [];
+  const BATCH_SIZE = 10;
+  
+  for (let i = 0; i < assets.length; i += BATCH_SIZE) {
+    const batch = assets.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map((a) => extendAsset(a, albumName)));
+    results.push(...batchResults);
+  }
+  
+  return results;
 }
 
 // ─── Delete Assets ────────────────────────────────────────────────────────────

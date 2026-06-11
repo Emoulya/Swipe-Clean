@@ -10,6 +10,7 @@ import { type AssetInfo, getAssetInfo } from '@/lib/mediaLoader';
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
+const MAX_CACHE_SIZE = 30;
 const preloadedCache = new Map<string, AssetInfo>();
 
 /**
@@ -22,6 +23,15 @@ export async function preloadAsset(asset: Asset): Promise<AssetInfo> {
 
   const info = await getAssetInfo(asset);
   preloadedCache.set(asset.id, info);
+
+  // Evict tertua jika melebihi batas kapasitas
+  if (preloadedCache.size > MAX_CACHE_SIZE) {
+    const firstKey = preloadedCache.keys().next().value;
+    if (firstKey) {
+      preloadedCache.delete(firstKey);
+    }
+  }
+
   return info;
 }
 

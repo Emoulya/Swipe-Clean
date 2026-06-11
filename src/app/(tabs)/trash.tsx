@@ -9,17 +9,15 @@ import {
   View,
   Text,
   Pressable,
-  ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Asset } from 'expo-media-library';
+import { FlashList } from '@shopify/flash-list';
 import { Sparkles } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useTrashStore } from '@/store/useTrashStore';
 import { type TrashBinRow } from '@/lib/db';
-import { deleteAssetsPermanently } from '@/lib/mediaLoader';
 import { TrashItem } from '@/components/TrashItem';
 import { CONFIG } from '@/constants/config';
 import { Spacing, BorderRadius } from '@/constants/theme';
@@ -134,6 +132,21 @@ export default function TrashScreen() {
     return `${(totalSize / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }, [totalSize]);
 
+  const renderItem = useCallback(
+    ({ item }: { item: TrashBinRow }) => {
+      return (
+        <TrashItem
+          item={item}
+          size={itemSize}
+          isSelected={selectedIds.has(item.asset_id)}
+          onPress={handleItemPress}
+          onLongPress={handleItemLongPress}
+        />
+      );
+    },
+    [itemSize, selectedIds, handleItemPress, handleItemLongPress],
+  );
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   if (isLoading && items.length === 0) {
@@ -215,20 +228,13 @@ export default function TrashScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.gridContent}>
-          <View style={styles.grid}>
-            {items.map((item) => (
-              <TrashItem
-                key={item.asset_id}
-                item={item}
-                size={itemSize}
-                isSelected={selectedIds.has(item.asset_id)}
-                onPress={handleItemPress}
-                onLongPress={handleItemLongPress}
-              />
-            ))}
-          </View>
-        </ScrollView>
+        <FlashList
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.asset_id}
+          numColumns={3}
+          contentContainerStyle={styles.gridContent}
+        />
       )}
     </View>
   );
@@ -308,7 +314,7 @@ const styles = StyleSheet.create({
 
   // Grid
   gridContent: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   grid: {
     flexDirection: 'row',

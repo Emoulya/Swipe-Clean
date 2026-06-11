@@ -6,6 +6,7 @@
 
 import { create } from 'zustand';
 import { Asset } from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import {
   type TrashBinRow,
@@ -60,12 +61,22 @@ export const useTrashStore = create<TrashState>((set, get) => ({
     try {
       const info = await getAssetInfo(asset);
 
+      let fileSize: number | null = null;
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(info.uri);
+        if (fileInfo.exists) {
+          fileSize = fileInfo.size ?? null;
+        }
+      } catch (e) {
+        console.warn(`Failed to get file size for URI: ${info.uri}`, e);
+      }
+
       const trashRow: Omit<TrashBinRow, 'id'> = {
         asset_id: asset.id,
         filename: info.filename,
         uri: info.uri,
         media_type: info.mediaType === 'image' ? 'photo' : 'video',
-        file_size: null, // File size is not directly available from Asset getters
+        file_size: fileSize,
         width: info.width,
         height: info.height,
         duration: info.duration,

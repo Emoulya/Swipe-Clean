@@ -1,7 +1,7 @@
 {
   "name": "swipe-clean",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "dependencies": {
     "@expo/ui": "~56.0.16",
     "@shopify/flash-list": "2.0.2",
@@ -23,6 +23,7 @@
     "expo-symbols": "~56.0.6",
     "expo-system-ui": "~56.0.5",
     "expo-video": "~56.1.2",
+    "expo-video-thumbnails": "~56.0.3",
     "expo-web-browser": "~56.0.5",
     "lucide-react-native": "^1.17.0",
     "react": "19.2.3",
@@ -39,6 +40,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~56.0.4",
     "typescript": "~6.0.3"
   },
   "scripts": {

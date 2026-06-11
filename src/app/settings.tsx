@@ -9,7 +9,7 @@
  * - Tema (system/light/dark)
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -21,9 +21,9 @@ import {
   Platform,
 } from 'react-native';
 import { Play, VolumeX, Vibrate, Trash2, Smartphone } from 'lucide-react-native';
+import Constants from 'expo-constants';
 
 import { useTheme } from '@/hooks/use-theme';
-import { CONFIG } from '@/constants/config';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { useSettingsStore } from '@/store/useSettingsStore';
 
@@ -199,7 +199,11 @@ export default function SettingsScreen() {
           { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
         ]}
       >
-        <SettingRow icon={Smartphone} label="SwipeClean" description="Versi 1.0.0">
+        <SettingRow
+          icon={Smartphone}
+          label="SwipeClean"
+          description={`Versi ${Constants.expoConfig?.version ?? '2.0.0'}`}
+        >
           <Text style={[styles.versionText, { color: theme.textSecondary }]}>
             Expo SDK 56
           </Text>
