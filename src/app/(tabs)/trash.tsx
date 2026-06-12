@@ -11,9 +11,12 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Sparkles } from 'lucide-react-native';
+
+import { MinimalistScrollbar } from '@/components/MinimalistScrollbar';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useTrashStore } from '@/store/useTrashStore';
@@ -38,6 +41,11 @@ export default function TrashScreen() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const isSelecting = selectedIds.size > 0;
+
+  // State dan Animated value untuk scrollbar kustom
+  const [contentHeight, setContentHeight] = useState(0);
+  const [layoutHeight, setLayoutHeight] = useState(0);
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   // Load saat mount dan clear expired
   useEffect(() => {
@@ -228,13 +236,30 @@ export default function TrashScreen() {
           </Text>
         </View>
       ) : (
-        <FlashList
-          data={items}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.asset_id}
-          numColumns={3}
-          contentContainerStyle={styles.gridContent}
-        />
+        <View style={styles.listWrapper}>
+          <FlashList
+            data={items}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.asset_id}
+            numColumns={3}
+            contentContainerStyle={styles.gridContent}
+            showsVerticalScrollIndicator={false}
+            onScroll={(e) => {
+              scrollY.setValue(e.nativeEvent.contentOffset.y);
+            }}
+            onContentSizeChange={(w, h) => {
+              setContentHeight(h);
+            }}
+            onLayout={(e) => {
+              setLayoutHeight(e.nativeEvent.layout.height);
+            }}
+          />
+          <MinimalistScrollbar
+            scrollY={scrollY}
+            contentHeight={contentHeight}
+            layoutHeight={layoutHeight}
+          />
+        </View>
       )}
     </View>
   );
@@ -313,6 +338,10 @@ const styles = StyleSheet.create({
   },
 
   // Grid
+  listWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
   gridContent: {
     paddingBottom: 120,
   },

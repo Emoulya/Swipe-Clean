@@ -71,7 +71,7 @@ export default function GridViewScreen() {
     } else if (hasPermission) {
       loadInitialAssets();
     }
-  }, [hasPermission]);
+  }, [hasPermission, requestPermission, loadInitialAssets]);
 
   // ─── Navigasi ke Swipe Mode ───────────────────────────────────────────────
 

@@ -9,7 +9,7 @@
  * - Tema (system/light/dark)
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,13 +19,16 @@ import {
   ScrollView,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
-import { Play, VolumeX, Vibrate, Trash2, Smartphone } from 'lucide-react-native';
+import { Play, VolumeX, Vibrate, Trash2, Smartphone, Database } from 'lucide-react-native';
 import Constants from 'expo-constants';
 
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { getCacheSize, formatBytes, clearAppCache } from '@/lib/cacheManager';
+import { MinimalistScrollbar } from '@/components/MinimalistScrollbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,6 +89,49 @@ export default function SettingsScreen() {
   const setHapticEnabled = useSettingsStore((s) => s.setHapticEnabled);
   const setAutoClearDays = useSettingsStore((s) => s.setAutoClearDays);
 
+  // State dan Animated value untuk scrollbar kustom
+  const [contentHeight, setContentHeight] = useState(0);
+  const [layoutHeight, setLayoutHeight] = useState(0);
+  const [scrollY] = useState(() => new Animated.Value(0));
+
+  // ─── Cache / Storage State ────────────────────────────────────────────────
+  const [cacheSize, setCacheSize] = useState<string>('Memuat...');
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSize() {
+      const size = await getCacheSize();
+      if (isMounted) {
+        setCacheSize(formatBytes(size));
+      }
+    }
+    loadSize();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleClearCache = useCallback(() => {
+    Alert.alert(
+      'Hapus Cache',
+      'Apakah Anda yakin ingin menghapus seluruh cache gambar dan thumbnail video? Aksi ini akan mengosongkan ruang penyimpanan cache aplikasi.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: async () => {
+            setCacheSize('Membersihkan...');
+            await clearAppCache();
+            const newSize = await getCacheSize();
+            setCacheSize(formatBytes(newSize));
+            Alert.alert('Sukses', 'Cache aplikasi berhasil dibersihkan.');
+          },
+        },
+      ]
+    );
+  }, []);
+
   // ─── Auto-clear Days Picker ───────────────────────────────────────────────
 
   const handleAutoClearChange = useCallback(() => {
@@ -106,116 +152,162 @@ export default function SettingsScreen() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.content}
-    >
-      {/* Video Settings */}
-      <SectionHeader title="VIDEO" />
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-        ]}
+    <View style={styles.wrapper}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          scrollY.setValue(e.nativeEvent.contentOffset.y);
+        }}
+        onContentSizeChange={(w, h) => {
+          setContentHeight(h);
+        }}
+        onLayout={(e) => {
+          setLayoutHeight(e.nativeEvent.layout.height);
+        }}
       >
-        <SettingRow
-          icon={Play}
-          label="Auto-play"
-          description="Putar video otomatis saat muncul"
+        {/* Video Settings */}
+        <SectionHeader title="VIDEO" />
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+          ]}
         >
-          <Switch
-            value={autoPlay}
-            onValueChange={setAutoPlay}
-            trackColor={{ false: theme.backgroundElement, true: theme.primary }}
-            thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
-          />
-        </SettingRow>
-
-        <SettingRow
-          icon={VolumeX}
-          label="Mute otomatis"
-          description="Video mute secara default"
-        >
-          <Switch
-            value={muted}
-            onValueChange={setMuted}
-            trackColor={{ false: theme.backgroundElement, true: theme.primary }}
-            thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
-          />
-        </SettingRow>
-      </View>
-
-      {/* Interaction Settings */}
-      <SectionHeader title="INTERAKSI" />
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-        ]}
-      >
-        <SettingRow
-          icon={Vibrate}
-          label="Haptic feedback"
-          description="Getaran saat swipe"
-        >
-          <Switch
-            value={hapticEnabled}
-            onValueChange={setHapticEnabled}
-            trackColor={{ false: theme.backgroundElement, true: theme.primary }}
-            thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
-          />
-        </SettingRow>
-      </View>
-
-      {/* Trash Settings */}
-      <SectionHeader title="SAMPAH" />
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-        ]}
-      >
-        <SettingRow
-          icon={Trash2}
-          label="Auto-hapus"
-          description={`Item di sampah dihapus otomatis setelah ${autoClearDays} hari`}
-        >
-          <Pressable
-            onPress={handleAutoClearChange}
-            style={[styles.valueButton, { backgroundColor: theme.backgroundElement }]}
+          <SettingRow
+            icon={Play}
+            label="Auto-play"
+            description="Putar video otomatis saat muncul"
           >
-            <Text style={[styles.valueText, { color: theme.primary }]}>
-              {autoClearDays} hari
-            </Text>
-          </Pressable>
-        </SettingRow>
-      </View>
+            <Switch
+              value={autoPlay}
+              onValueChange={setAutoPlay}
+              trackColor={{ false: theme.backgroundElement, true: theme.primary }}
+              thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+            />
+          </SettingRow>
 
-      {/* About */}
-      <SectionHeader title="TENTANG" />
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-        ]}
-      >
-        <SettingRow
-          icon={Smartphone}
-          label="SwipeClean"
-          description={`Versi ${Constants.expoConfig?.version ?? '2.0.0'}`}
+          <SettingRow
+            icon={VolumeX}
+            label="Mute otomatis"
+            description="Video mute secara default"
+          >
+            <Switch
+              value={muted}
+              onValueChange={setMuted}
+              trackColor={{ false: theme.backgroundElement, true: theme.primary }}
+              thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+            />
+          </SettingRow>
+        </View>
+
+        {/* Interaction Settings */}
+        <SectionHeader title="INTERAKSI" />
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+          ]}
         >
-          <Text style={[styles.versionText, { color: theme.textSecondary }]}>
-            Expo SDK 56
-          </Text>
-        </SettingRow>
-      </View>
-    </ScrollView>
+          <SettingRow
+            icon={Vibrate}
+            label="Haptic feedback"
+            description="Getaran saat swipe"
+          >
+            <Switch
+              value={hapticEnabled}
+              onValueChange={setHapticEnabled}
+              trackColor={{ false: theme.backgroundElement, true: theme.primary }}
+              thumbColor={Platform.OS === 'android' ? '#FFFFFF' : undefined}
+            />
+          </SettingRow>
+        </View>
+
+        {/* Trash Settings */}
+        <SectionHeader title="SAMPAH" />
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+          ]}
+        >
+          <SettingRow
+            icon={Trash2}
+            label="Auto-hapus"
+            description={`Item di sampah dihapus otomatis setelah ${autoClearDays} hari`}
+          >
+            <Pressable
+              onPress={handleAutoClearChange}
+              style={[styles.valueButton, { backgroundColor: theme.backgroundElement }]}
+            >
+              <Text style={[styles.valueText, { color: theme.primary }]}>
+                {autoClearDays} hari
+              </Text>
+            </Pressable>
+          </SettingRow>
+        </View>
+
+        {/* Storage Settings */}
+        <SectionHeader title="PENYIMPANAN" />
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+          ]}
+        >
+          <SettingRow
+            icon={Database}
+            label="Cache Aplikasi"
+            description="Hapus gambar & video thumbnail yang di-cache"
+          >
+            <Pressable
+              onPress={handleClearCache}
+              style={[styles.valueButton, { backgroundColor: theme.backgroundElement }]}
+            >
+              <Text style={[styles.valueText, { color: theme.danger }]}>
+                {cacheSize}
+              </Text>
+            </Pressable>
+          </SettingRow>
+        </View>
+
+        {/* About */}
+        <SectionHeader title="TENTANG" />
+        <View
+          style={[
+            styles.sectionCard,
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+          ]}
+        >
+          <SettingRow
+            icon={Smartphone}
+            label="SwipeClean"
+            description={`Versi ${Constants.expoConfig?.version ?? '2.0.0'}`}
+          >
+            <Text style={[styles.versionText, { color: theme.textSecondary }]}>
+              Expo SDK 56
+            </Text>
+          </SettingRow>
+        </View>
+      </ScrollView>
+      <MinimalistScrollbar
+        scrollY={scrollY}
+        contentHeight={contentHeight}
+        layoutHeight={layoutHeight}
+      />
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    position: 'relative',
+  },
   container: {
     flex: 1,
   },

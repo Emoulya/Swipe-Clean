@@ -13,6 +13,7 @@ import {
   RefreshControl,
   Pressable,
   BackHandler,
+  Animated,
 } from 'react-native';
 import { router } from 'expo-router';
 import { FolderOpen, Sparkles } from 'lucide-react-native';
@@ -25,6 +26,7 @@ import { loadAlbums, loadAssets, extendAssets, type AlbumInfo, type ExtendedAsse
 import { FlashList } from '@shopify/flash-list';
 import { FolderCard } from '@/components/FolderCard';
 import { MediaGrid } from '@/components/MediaGrid';
+import { MinimalistScrollbar } from '@/components/MinimalistScrollbar';
 import { Spacing } from '@/constants/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +57,11 @@ export default function FoldersScreen() {
   const [isAssetsLoading, setIsAssetsLoading] = useState(false);
   const [assetsOffset, setAssetsOffset] = useState(0);
   const [assetsHasNextPage, setAssetsHasNextPage] = useState(true);
+
+  // State dan Animated value untuk scrollbar kustom daftar folder utama
+  const [contentHeight, setContentHeight] = useState(0);
+  const [layoutHeight, setLayoutHeight] = useState(0);
+  const [scrollY] = useState(() => new Animated.Value(0));
 
   // Filter out trashed assets
   const trashItems = useTrashStore((s) => s.items);
@@ -480,6 +487,16 @@ export default function FoldersScreen() {
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        onScroll={(e) => {
+          scrollY.setValue(e.nativeEvent.contentOffset.y);
+        }}
+        onContentSizeChange={(w, h) => {
+          setContentHeight(h);
+        }}
+        onLayout={(e) => {
+          setLayoutHeight(e.nativeEvent.layout.height);
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -488,6 +505,11 @@ export default function FoldersScreen() {
             colors={[theme.primary]}
           />
         }
+      />
+      <MinimalistScrollbar
+        scrollY={scrollY}
+        contentHeight={contentHeight}
+        layoutHeight={layoutHeight}
       />
     </View>
   );

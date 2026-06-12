@@ -13,6 +13,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Pressable,
+  Animated,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
@@ -21,6 +22,7 @@ import { Camera } from 'lucide-react-native';
 import { CONFIG } from '@/constants/config';
 import { useTheme } from '@/hooks/use-theme';
 import { type ExtendedAsset, formatDateId } from '@/lib/mediaLoader';
+import { MinimalistScrollbar } from '@/components/MinimalistScrollbar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -169,6 +171,10 @@ export function MediaGrid({
   const [refreshing, setRefreshing] = useState(false);
   const itemSize = Math.floor(CONFIG.SCREEN_WIDTH / CONFIG.GRID_COLUMNS) - 2;
 
+  const [contentHeight, setContentHeight] = useState(0);
+  const [layoutHeight, setLayoutHeight] = useState(0);
+  const [scrollY] = React.useState(() => new Animated.Value(0));
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     onRefresh();
@@ -246,28 +252,45 @@ export function MediaGrid({
   }, [isLoading, emptyMessage, theme.textSecondary]);
 
   return (
-    <FlashList
-      data={groupedData}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      getItemType={getItemType}
-      overrideItemLayout={overrideItemLayout}
-      numColumns={1}
-      onEndReached={onEndReached}
-      onEndReachedThreshold={0.5}
-      ListHeaderComponent={headerComponent}
-      ListFooterComponent={renderFooter}
-      ListEmptyComponent={renderEmpty}
-      contentContainerStyle={styles.listContent}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-        />
-      }
-    />
+    <View style={styles.listWrapper}>
+      <FlashList
+        data={groupedData}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        getItemType={getItemType}
+        overrideItemLayout={overrideItemLayout}
+        numColumns={1}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={headerComponent}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        onScroll={(e) => {
+          scrollY.setValue(e.nativeEvent.contentOffset.y);
+        }}
+        onContentSizeChange={(w, h) => {
+          setContentHeight(h);
+        }}
+        onLayout={(e) => {
+          setLayoutHeight(e.nativeEvent.layout.height);
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
+      />
+      <MinimalistScrollbar
+        scrollY={scrollY}
+        contentHeight={contentHeight}
+        layoutHeight={layoutHeight}
+      />
+    </View>
   );
 }
 
@@ -283,6 +306,10 @@ function formatDuration(durationMs: number): string {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  listWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
   listContent: {
     paddingBottom: 120, // Diperpanjang agar tidak tertutup floating bottom bar
   },

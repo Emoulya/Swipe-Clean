@@ -9,7 +9,7 @@
  * progress bar, dan undo snackbar.
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Asset, MediaType } from 'expo-media-library';
+import { Asset } from 'expo-media-library';
 import { X, Settings, PartyPopper, Info } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -107,7 +107,7 @@ export default function SwipeScreen() {
     return () => {
       setFilter({ albumId: null });
     };
-  }, [albumId]);
+  }, [albumId, setFilter, loadInitialAssets]);
 
   // ─── Preload stack cards ──────────────────────────────────────────────────
 

@@ -7,8 +7,9 @@
  * 3. Trash — trash bin
  */
 
-import { Tabs } from 'expo-router';
-import { Image, Folder, Trash2 } from 'lucide-react-native';
+import { Tabs, router } from 'expo-router';
+import { Pressable } from 'react-native';
+import { Image, Folder, Trash2, Settings } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 
@@ -25,6 +26,18 @@ export default function TabLayout() {
         },
         headerTintColor: theme.text,
         headerShadowVisible: false,
+        headerRight: () => (
+          <Pressable
+            onPress={() => router.push('/settings' as any)}
+            style={({ pressed }) => [
+              { marginRight: 20 },
+              pressed && { opacity: 0.7 },
+            ]}
+            hitSlop={12}
+          >
+            <Settings color={theme.text} size={22} />
+          </Pressable>
+        ),
         tabBarStyle: {
           position: 'absolute',
           bottom: 24,
