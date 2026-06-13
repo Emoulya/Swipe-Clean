@@ -9,7 +9,7 @@
  * - Tema (system/light/dark)
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -93,6 +93,7 @@ export default function SettingsScreen() {
   const [contentHeight, setContentHeight] = useState(0);
   const [layoutHeight, setLayoutHeight] = useState(0);
   const [scrollY] = useState(() => new Animated.Value(0));
+  const scrollRef = useRef<any>(null);
 
   // ─── Cache / Storage State ────────────────────────────────────────────────
   const [cacheSize, setCacheSize] = useState<string>('Memuat...');
@@ -296,6 +297,7 @@ export default function SettingsScreen() {
         scrollY={scrollY}
         contentHeight={contentHeight}
         layoutHeight={layoutHeight}
+        listRef={scrollRef}
       />
     </View>
   );

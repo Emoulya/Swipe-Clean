@@ -77,17 +77,21 @@ export default function GridViewScreen() {
 
   const handleStartSwipe = useCallback(() => {
     const albumId = filter.albumId ?? 'all';
-    router.push(`/swipe/${albumId}` as any);
-  }, [filter.albumId]);
+    router.push({
+      pathname: `/swipe/${albumId}`,
+      params: { totalLoaded: assets.length },
+    } as any);
+  }, [filter.albumId, assets.length]);
 
   const handleAssetPress = useCallback((asset: Asset) => {
     const index = assets.findIndex((a) => a.id === asset.id);
     const initialIndex = index !== -1 ? index : 0;
+    const albumId = filter.albumId ?? 'all';
     router.push({
-      pathname: '/swipe/all',
-      params: { initialIndex },
+      pathname: `/swipe/${albumId}`,
+      params: { initialIndex, totalLoaded: assets.length },
     } as any);
-  }, [assets]);
+  }, [assets, filter.albumId]);
 
   // ─── Permission belum diberikan ───────────────────────────────────────────
 

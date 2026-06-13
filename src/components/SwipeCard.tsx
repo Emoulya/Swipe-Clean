@@ -228,7 +228,7 @@ export function SwipeCard({
           <Image
             source={{ uri: assetThumbnailUri || assetUri || asset.id }}
             style={styles.image}
-            contentFit="cover"
+            contentFit="contain"
             transition={200}
             recyclingKey={asset.id}
           />
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   card: {
     position: 'absolute',
     width: CONFIG.SCREEN_WIDTH - 32,
-    height: CONFIG.SCREEN_HEIGHT * 0.65,
+    height: CONFIG.SCREEN_HEIGHT * 0.75,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#1A1A1A',

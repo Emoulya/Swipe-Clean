@@ -3,7 +3,7 @@
  * Aksi: pulihkan, hapus permanen, atau hapus semua.
  */
 
-import { useEffect, useCallback, useState, useMemo } from 'react';
+import { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -46,6 +46,7 @@ export default function TrashScreen() {
   const [contentHeight, setContentHeight] = useState(0);
   const [layoutHeight, setLayoutHeight] = useState(0);
   const [scrollY] = useState(() => new Animated.Value(0));
+  const listRef = useRef<any>(null);
 
   // Load saat mount dan clear expired
   useEffect(() => {
@@ -238,12 +239,14 @@ export default function TrashScreen() {
       ) : (
         <View style={styles.listWrapper}>
           <FlashList
+            ref={listRef}
             data={items}
             renderItem={renderItem}
             keyExtractor={(item) => item.asset_id}
             numColumns={3}
             contentContainerStyle={styles.gridContent}
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
             onScroll={(e) => {
               scrollY.setValue(e.nativeEvent.contentOffset.y);
             }}
@@ -258,6 +261,7 @@ export default function TrashScreen() {
             scrollY={scrollY}
             contentHeight={contentHeight}
             layoutHeight={layoutHeight}
+            listRef={listRef}
           />
         </View>
       )}

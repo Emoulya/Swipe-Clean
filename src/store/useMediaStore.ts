@@ -37,10 +37,10 @@ interface MediaState {
 
   // Actions
   requestPermission: () => Promise<boolean>;
-  loadInitialAssets: () => Promise<void>;
+  loadInitialAssets: (minSize?: number) => Promise<void>;
   loadMoreAssets: () => Promise<void>;
   refreshAssets: () => Promise<void>;
-  setFilter: (filter: Partial<MediaFilter>) => void;
+  setFilter: (filter: Partial<MediaFilter>, minSize?: number) => void;
   resetFilter: () => void;
   removeAssetsByIds: (assetIds: string[]) => void;
 }
@@ -62,20 +62,21 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     return granted;
   },
 
-  loadInitialAssets: async () => {
+  loadInitialAssets: async (minSize?: number) => {
     const state = get();
     if (state.isLoading) return;
 
     set({ isLoading: true });
 
     try {
-      const rawAssets = await loadAssets(state.filter, 0, CONFIG.PAGE_SIZE);
+      const pageSize = minSize && minSize > CONFIG.PAGE_SIZE ? minSize : CONFIG.PAGE_SIZE;
+      const rawAssets = await loadAssets(state.filter, 0, pageSize);
       const assets = await extendAssets(rawAssets);
 
       set({
         assets,
         currentOffset: assets.length,
-        hasNextPage: assets.length >= CONFIG.PAGE_SIZE,
+        hasNextPage: assets.length >= pageSize,
         totalCount: assets.length,
         isLoading: false,
       });
@@ -118,7 +119,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     await get().loadInitialAssets();
   },
 
-  setFilter: (partialFilter) => {
+  setFilter: (partialFilter, minSize) => {
     const currentFilter = get().filter;
     const newFilter = { ...currentFilter, ...partialFilter };
 
@@ -132,7 +133,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
     });
 
     // Auto-reload setelah filter berubah
-    get().loadInitialAssets();
+    get().loadInitialAssets(minSize);
   },
 
   resetFilter: () => {

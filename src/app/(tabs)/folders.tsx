@@ -4,7 +4,7 @@
  * Menampilkan daftar album/folder dengan bagian Pinned (2x2) dan Albums (grid 3 kolom).
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -62,6 +62,7 @@ export default function FoldersScreen() {
   const [contentHeight, setContentHeight] = useState(0);
   const [layoutHeight, setLayoutHeight] = useState(0);
   const [scrollY] = useState(() => new Animated.Value(0));
+  const listRef = useRef<any>(null);
 
   // Filter out trashed assets
   const trashItems = useTrashStore((s) => s.items);
@@ -315,9 +316,12 @@ export default function FoldersScreen() {
 
   const handleStartSwipe = useCallback(() => {
     if (selectedAlbum) {
-      router.push(`/swipe/${selectedAlbum.album.id}` as any);
+      router.push({
+        pathname: `/swipe/${selectedAlbum.album.id}`,
+        params: { totalLoaded: albumAssets.length },
+      } as any);
     }
-  }, [selectedAlbum]);
+  }, [selectedAlbum, albumAssets.length]);
 
   const renderItem = useCallback(({ item }: { item: AlbumInfo }) => {
     return (
@@ -453,7 +457,7 @@ export default function FoldersScreen() {
             const initialIndex = index !== -1 ? index : 0;
             router.push({
               pathname: `/swipe/${selectedAlbum.album.id}`,
-              params: { initialIndex },
+              params: { initialIndex, totalLoaded: albumAssets.length },
             } as any);
           }}
           emptyMessage="Tidak ada media di folder ini"
@@ -480,6 +484,7 @@ export default function FoldersScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <FlashList
+        ref={listRef}
         data={albums}
         renderItem={renderItem}
         keyExtractor={(item) => item.album.id}
@@ -488,6 +493,7 @@ export default function FoldersScreen() {
         ListEmptyComponent={listEmpty}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         onScroll={(e) => {
           scrollY.setValue(e.nativeEvent.contentOffset.y);
         }}
@@ -510,6 +516,7 @@ export default function FoldersScreen() {
         scrollY={scrollY}
         contentHeight={contentHeight}
         layoutHeight={layoutHeight}
+        listRef={listRef}
       />
     </View>
   );

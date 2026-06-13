@@ -46,12 +46,15 @@ interface CardData {
 
 export default function SwipeScreen() {
   const theme = useTheme();
-  const { albumId, initialIndex } = useLocalSearchParams<{ albumId: string; initialIndex?: string }>();
+  const { albumId, initialIndex, totalLoaded } = useLocalSearchParams<{
+    albumId: string;
+    initialIndex?: string;
+    totalLoaded?: string;
+  }>();
 
   const { assets: filteredAssets } = useFilteredAssets();
   const isLoading = useMediaStore((s) => s.isLoading);
   const setFilter = useMediaStore((s) => s.setFilter);
-  const loadInitialAssets = useMediaStore((s) => s.loadInitialAssets);
 
   const [sessionAssets, setSessionAssets] = useState<Asset[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -95,19 +98,20 @@ export default function SwipeScreen() {
 
   // ─── Inisialisasi: set filter dan load assets ─────────────────────────────
 
+  const parsedTotalLoaded = totalLoaded ? parseInt(totalLoaded, 10) : undefined;
+
   useEffect(() => {
     if (albumId && albumId !== 'all') {
-      setFilter({ albumId });
+      setFilter({ albumId }, parsedTotalLoaded);
     } else {
-      setFilter({ albumId: null });
+      setFilter({ albumId: null }, parsedTotalLoaded);
     }
-    loadInitialAssets();
 
     // Reset filter album ketika swipe mode ditutup agar tidak mengotori tab Galeri utama
     return () => {
       setFilter({ albumId: null });
     };
-  }, [albumId, setFilter, loadInitialAssets]);
+  }, [albumId, parsedTotalLoaded, setFilter]);
 
   // ─── Preload stack cards ──────────────────────────────────────────────────
 

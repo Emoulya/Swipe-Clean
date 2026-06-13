@@ -141,7 +141,7 @@ export function VideoPreview({ uri, isActive, duration }: VideoPreviewProps) {
         player={player}
         style={styles.video}
         nativeControls={false}
-        contentFit="cover"
+        contentFit="contain"
         surfaceType="textureView"
       />
 

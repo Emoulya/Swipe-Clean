@@ -174,6 +174,7 @@ export function MediaGrid({
   const [contentHeight, setContentHeight] = useState(0);
   const [layoutHeight, setLayoutHeight] = useState(0);
   const [scrollY] = React.useState(() => new Animated.Value(0));
+  const listRef = React.useRef<any>(null);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -254,6 +255,7 @@ export function MediaGrid({
   return (
     <View style={styles.listWrapper}>
       <FlashList
+        ref={listRef}
         data={groupedData}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
@@ -267,6 +269,7 @@ export function MediaGrid({
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         onScroll={(e) => {
           scrollY.setValue(e.nativeEvent.contentOffset.y);
         }}
@@ -289,6 +292,7 @@ export function MediaGrid({
         scrollY={scrollY}
         contentHeight={contentHeight}
         layoutHeight={layoutHeight}
+        listRef={listRef}
       />
     </View>
   );
